@@ -38,7 +38,7 @@ class SpatialAttention(nn.Module):
         return self.sigmoid(x)
 
 class BottlenNeck(nn.Module):
-    def __init__(self,in_,planes,stride=1):
+    def __init__(self,in_,planes,stride=1, downsample=None):
         super(BottlenNeck,self).__init__()
         self.layer =nn.Sequential(
             nn.Conv2d(in_,planes,kernel_size=1,bias=False),
@@ -48,13 +48,19 @@ class BottlenNeck(nn.Module):
             nn.Conv2d(planes,planes*4,kernel_size=1,bias=False),
             nn.BatchNorm2d(planes*4),
             nn.ReLU(inplace=True),
-            ChannelAttention(planes*4), #ChannelAttention
-            SpatialAttention(),  #SpatialAttention
+            
         )
+        self.ca = ChannelAttention(planes*4) #ChannelAttention
+        self.sa = SpatialAttention()  #SpatialAttention
         self.relu =nn.ReLU(inplace=True)
+        self.downsample = downsample
     def forward(self,x):
         residual =x
         out =self.layer(x)
+        out =self.ca(out)*out
+        out =self.sa(out)*out
+        if self.downsample is not None:
+            residual = self.downsample(x)
         out += residual
         out = self.relu(out)
         return out
@@ -70,13 +76,14 @@ class CBAM(nn.Module):
             nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
         )
         def m_layer(block,planes,count,stride):
+            downsample = None
             if stride !=1 or planes*4!=self.inplanes:
                 downsample =nn.Sequential(
                     nn.Conv2d(self.inplanes,planes*4,kernel_size=1,stride=stride,bias=False),
                     nn.BatchNorm2d(planes*4)
                 )
             layers =[]
-            layers.append(block(self.inplanes,planes,stride))
+            layers.append(block(self.inplanes,planes,stride,downsample))
             self.inplanes =planes*4
             for i in range(1,count):
                 layers.append(block(self.inplanes,planes))

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import argparse
+import numpy as np
 from models import resnet50_cbam
 
 
@@ -14,12 +15,12 @@ def weights_init(m):
         m.bias.data.fill_(0)
 
 parser =argparse.ArgumentParser()
-parser.add_argument('--batchsize',type=int,default=64,help='batch_size')
+parser.add_argument('--batchsize',type=int,default=16,help='batch_size')
 parser.add_argument('--lr',type=float,default=0.001,help='learning rate')
 parser.add_argument('--start_epoch',type=int,default=0,help='start epochs')
 parser.add_argument('--epochs',type=int,default=100,help='total epochs')
-parser.add_argument('--img_size',type=int,default=64)
-parser.add_argument('--data_path',type =str,default ='D:/DATASET/celeba/')
+parser.add_argument('--img_size',type=int,default=224)
+parser.add_argument('--data_path',type =str,default ='..')
 
 opt =parser.parse_args()
 model =resnet50_cbam()
@@ -44,8 +45,16 @@ dataloader = torch.utils.data.DataLoader(
 
 optimizer = torch.optim.SGD(model.parameters(), lr=opt.lr, momentum=0.9, weight_decay=1e-4)
 for epoch in range(opt.epochs):
+    losses=[]
     for i,(inputs,labels) in enumerate(dataloader):
+        inputs, labels = inputs.cuda(), labels.cuda()
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = loss_fn(outputs,labels)
         loss.backward()
+        losses.append(loss.item())       
+        if i % 10 ==0:
+            batch_mean_loss  = np.mean(losses)
+            print('Training Batch[%d/%d]\t Class Loss: %.4f\t'           \
+                            % ( i, len(dataloader) - 1, batch_mean_loss))
+            losses.clear()
